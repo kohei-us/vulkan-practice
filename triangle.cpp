@@ -10,6 +10,7 @@
 #include <cstring>
 #include <optional>
 #include <iterator>
+#include <cassert>
 
 using std::cout;
 using std::cerr;
@@ -202,12 +203,44 @@ private:
             }
         }
 
-        if (physicalDevice = VK_NULL_HANDLE)
+        if (physicalDevice == VK_NULL_HANDLE)
             throw std::runtime_error("no suitable GPU found.");
     }
 
     void createLogicalDevice()
     {
+        assert(physicalDevice != VK_NULL_HANDLE);
+        QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+        assert(indices.isComplete());
+
+        VkDeviceQueueCreateInfo queueCreateInfo{};
+        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queueCreateInfo.queueFamilyIndex = indices.graphicsFamilies.front();
+        queueCreateInfo.queueCount = 1;
+
+        float queuePriority = 1.0f;
+        queueCreateInfo.pQueuePriorities = &queuePriority;
+
+        VkPhysicalDeviceFeatures deviceFeatures{}; // For now, we are not using any features.
+
+        VkDeviceCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+        createInfo.pQueueCreateInfos = &queueCreateInfo;
+        createInfo.queueCreateInfoCount = 1;
+        createInfo.pEnabledFeatures = &deviceFeatures;
+
+        createInfo.enabledExtensionCount = 0;
+
+        if (enableValidationLayers)
+        {
+            createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+            createInfo.ppEnabledLayerNames = validationLayers.data();
+        }
+        else
+            createInfo.enabledLayerCount = 0;
+
+        if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS)
+            throw std::runtime_error("failed to create logical device!");
     }
 
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device)
@@ -324,6 +357,8 @@ private:
 
     void cleanup()
     {
+        vkDestroyDevice(device, nullptr);
+
         if (enableValidationLayers)
             DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
 
