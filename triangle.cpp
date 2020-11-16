@@ -9,6 +9,7 @@
 #include <vector>
 #include <cstring>
 #include <optional>
+#include <iterator>
 
 using std::cout;
 using std::cerr;
@@ -52,17 +53,18 @@ class HelloTriangleApplication
 {
     struct QueueFamilyIndices
     {
-        std::optional<uint32_t> graphicsFamily;
+        std::vector<uint32_t> graphicsFamilies;
 
         bool isComplete() const
         {
-            return graphicsFamily.has_value();
+            return !graphicsFamilies.empty();
         }
     };
 
     GLFWwindow* window = nullptr;
     VkInstance instance;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+    VkDevice device;
     VkDebugUtilsMessengerEXT debugMessenger;
 
 public:
@@ -151,6 +153,7 @@ private:
         createInstance();
         setupDebugMessanger();
         pickPhysicalDevice();
+        createLogicalDevice();
     }
 
     void pickPhysicalDevice()
@@ -174,7 +177,9 @@ private:
             if (!queues.isComplete())
                 return false;
 
-            cout << "  - queue family index: " << *queues.graphicsFamily << endl;
+            cout << "  - queue family indices: [";
+            std::copy(queues.graphicsFamilies.begin(), queues.graphicsFamilies.end(), std::ostream_iterator<uint32_t>(cout, ", "));
+            cout << ']' << endl;
 
             return deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && deviceFeatures.geometryShader;
         };
@@ -201,6 +206,10 @@ private:
             throw std::runtime_error("no suitable GPU found.");
     }
 
+    void createLogicalDevice()
+    {
+    }
+
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device)
     {
         // Logic to find graphics queue family
@@ -215,10 +224,7 @@ private:
         for (uint32_t i = 0; i < queueFamilyCount; ++i)
         {
             if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
-            {
-                indices.graphicsFamily = i;
-                break;
-            }
+                indices.graphicsFamilies.push_back(i);
         }
 
         return indices;
