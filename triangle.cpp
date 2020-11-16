@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <vector>
 #include <cstring>
+#include <optional>
 
 using std::cout;
 using std::cerr;
@@ -49,6 +50,16 @@ void DestroyDebugUtilsMessengerEXT(
 
 class HelloTriangleApplication
 {
+    struct QueueFamilyIndices
+    {
+        std::optional<uint32_t> graphicsFamily;
+
+        bool isComplete() const
+        {
+            return graphicsFamily.has_value();
+        }
+    };
+
     GLFWwindow* window = nullptr;
     VkInstance instance;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
@@ -144,7 +155,7 @@ private:
 
     void pickPhysicalDevice()
     {
-        auto isDeviceSuitable = [](VkPhysicalDevice device) -> bool
+        auto isDeviceSuitable = [this](VkPhysicalDevice device) -> bool
         {
             VkPhysicalDeviceProperties deviceProperties;
             VkPhysicalDeviceFeatures deviceFeatures;
@@ -158,6 +169,12 @@ private:
             cout << "  - vendor ID: " << deviceProperties.vendorID << endl;
             cout << "  - device ID: " << deviceProperties.deviceID << endl;
             cout << "  - supports geometry shader: " << deviceFeatures.geometryShader << endl;
+
+            QueueFamilyIndices queues = findQueueFamilies(device);
+            if (!queues.isComplete())
+                return false;
+
+            cout << "  - queue family index: " << *queues.graphicsFamily << endl;
 
             return deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && deviceFeatures.geometryShader;
         };
@@ -182,6 +199,29 @@ private:
 
         if (physicalDevice = VK_NULL_HANDLE)
             throw std::runtime_error("no suitable GPU found.");
+    }
+
+    QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device)
+    {
+        // Logic to find graphics queue family
+        QueueFamilyIndices indices;
+
+        uint32_t queueFamilyCount = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+
+        std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+
+        for (uint32_t i = 0; i < queueFamilyCount; ++i)
+        {
+            if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
+            {
+                indices.graphicsFamily = i;
+                break;
+            }
+        }
+
+        return indices;
     }
 
     void createInstance()
