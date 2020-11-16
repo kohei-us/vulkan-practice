@@ -66,6 +66,7 @@ class HelloTriangleApplication
     VkInstance instance;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice device;
+    VkQueue graphicsQueue;
     VkDebugUtilsMessengerEXT debugMessenger;
 
 public:
@@ -241,6 +242,8 @@ private:
 
         if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS)
             throw std::runtime_error("failed to create logical device!");
+
+        vkGetDeviceQueue(device, indices.graphicsFamilies.front(), 0, &graphicsQueue);
     }
 
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device)
