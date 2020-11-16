@@ -20,6 +20,10 @@ const std::vector<const char*> validationLayers = {
     "VK_LAYER_KHRONOS_validation"
 };
 
+const std::vector<const char*> deviceExtensions = {
+    VK_KHR_SWAPCHAIN_EXTENSION_NAME
+};
+
 #ifdef NDEBUG
 const bool enableValidationLayers = false;
 #else
@@ -168,14 +172,41 @@ private:
             throw std::runtime_error("failed to create window surface!");
     }
 
+    bool checkDeviceExtensionSupport(VkPhysicalDevice device) const
+    {
+        uint32_t extensionCount;
+        vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
+
+        std::vector<VkExtensionProperties> availableExtensions(extensionCount);
+        vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
+
+        std::set<std::string> requiredExtensions(deviceExtensions.begin(), deviceExtensions.end());
+
+        cout << "This physical device supports the following extensions: " << endl;
+        for (const VkExtensionProperties& ext : availableExtensions)
+        {
+            cout << "  - " << ext.extensionName << endl;
+            requiredExtensions.erase(ext.extensionName);
+        }
+
+        return requiredExtensions.empty();
+    }
+
     void pickPhysicalDevice()
     {
         auto isDeviceSuitable = [this](VkPhysicalDevice device) -> bool
         {
             VkPhysicalDeviceProperties deviceProperties;
-            VkPhysicalDeviceFeatures deviceFeatures;
             vkGetPhysicalDeviceProperties(device, &deviceProperties);
+
+            if (deviceProperties.deviceType != VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+                return false;
+
+            VkPhysicalDeviceFeatures deviceFeatures;
             vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+
+            if (!deviceFeatures.geometryShader)
+                return false;
 
             cout << "GPU device:" << endl;
             cout << "  - name: " << deviceProperties.deviceName << endl;
@@ -192,7 +223,10 @@ private:
             cout << "  - queue family for graphics: " << *queues.graphicsFamily << endl;
             cout << "  - queue family for present: " << *queues.presentFamily << endl;
 
-            return deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && deviceFeatures.geometryShader;
+            if (!checkDeviceExtensionSupport(device))
+                return false;
+
+            return true;
         };
 
         uint32_t deviceCount = 0;
