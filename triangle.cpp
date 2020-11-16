@@ -67,6 +67,13 @@ class HelloTriangleApplication
         }
     };
 
+    struct SwapChainSupportDetails
+    {
+        VkSurfaceCapabilitiesKHR capabilities;
+        std::vector<VkSurfaceFormatKHR> formats;
+        std::vector<VkPresentModeKHR> presentModes;
+    };
+
     GLFWwindow* window = nullptr;
     VkInstance instance;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
@@ -192,6 +199,32 @@ private:
         return requiredExtensions.empty();
     }
 
+    SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device) const
+    {
+        SwapChainSupportDetails details;
+
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
+
+        uint32_t formatCount;
+        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
+        if (formatCount)
+        {
+            details.formats.resize(formatCount);
+            vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, details.formats.data());
+        }
+
+        uint32_t presentModeCount;
+        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr);
+
+        if (presentModeCount)
+        {
+            details.presentModes.resize(presentModeCount);
+            vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, details.presentModes.data());
+        }
+
+        return details;
+    }
+
     void pickPhysicalDevice()
     {
         auto isDeviceSuitable = [this](VkPhysicalDevice device) -> bool
@@ -226,7 +259,14 @@ private:
             if (!checkDeviceExtensionSupport(device))
                 return false;
 
-            return true;
+            SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
+            bool swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
+
+            cout << "Swap chain support details:" << endl;
+            cout << "  - number of surface formats supported: " << swapChainSupport.formats.size() << endl;
+            cout << "  - number of present modes supported: " << swapChainSupport.presentModes.size() << endl;
+
+            return swapChainAdequate;
         };
 
         uint32_t deviceCount = 0;
