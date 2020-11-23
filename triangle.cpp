@@ -929,6 +929,9 @@ private:
             glfwPollEvents();
             drawFrame();
         }
+
+        // Wait for all the rendering ops to finish before exiting the app.
+        vkDeviceWaitIdle(device);
     }
 
     void drawFrame()
