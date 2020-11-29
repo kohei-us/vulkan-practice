@@ -218,6 +218,9 @@ private:
         createSyncObjects();
     }
 
+    /**
+     * Create a vulkan surface object for GLFW window.
+     */
     void createSurface()
     {
         if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS)
@@ -244,6 +247,10 @@ private:
         return requiredExtensions.empty();
     }
 
+    /**
+     * Get the specific details of a physical device surface, such as
+     * capabilities, formats, and present modes supported by the surface.
+     */
     SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device) const
     {
         SwapChainSupportDetails details;
@@ -311,6 +318,9 @@ private:
         return actualExtent;
     }
 
+    /**
+     * Pick a suitable physical device (GPU) based on our requirements.
+     */
     void pickPhysicalDevice()
     {
         auto isDeviceSuitable = [this](VkPhysicalDevice device) -> bool
@@ -377,6 +387,14 @@ private:
             throw std::runtime_error("no suitable GPU found.");
     }
 
+    /**
+     * Create a logical device from the physical device.  A logical device
+     * consists of queue families, device features, layers, and extensions.
+     *
+     * In doing so, we also obtain references to the queue objects from their
+     * indices.  These queue reference objects do not need to be destroyed at
+     * the end.
+     */
     void createLogicalDevice()
     {
         assert(physicalDevice != VK_NULL_HANDLE);
@@ -423,6 +441,15 @@ private:
         vkGetDeviceQueue(device, *indices.presentFamily, 0, &presentQueue);
     }
 
+    /**
+     * First, query the surface for its detailed capabilities, and pick the
+     * best surface format and present mode to use based on our needs.  Also
+     * decide on the size of the image as well as how many images (frames) to
+     * use. For this app, we use sRGB format as its colorspace.
+     *
+     * Once that's done, create swap chain images from the logical device.
+     * They do not need to be cleaned up at the end.
+     */
     void createSwapChain()
     {
         SwapChainSupportDetails swapChainSupport = querySwapChainSupport(physicalDevice);
@@ -487,6 +514,9 @@ private:
         swapChainExtent = extent;
     }
 
+    /**
+     * Create image views from the swap chain images.
+     */
     void createImageViews()
     {
         swapChainImageViews.resize(swapChainImages.size());
@@ -515,6 +545,10 @@ private:
         }
     }
 
+    /**
+     * Create a render pass object with color attachment, subpass and
+     * dependency info.
+     */
     void createRenderPass()
     {
         VkAttachmentDescription colorAttachment{};
@@ -536,13 +570,6 @@ private:
         subpass.colorAttachmentCount = 1;
         subpass.pColorAttachments = &colorAttachmentRef;
 
-        VkRenderPassCreateInfo renderPassInfo{};
-        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-        renderPassInfo.attachmentCount = 1;
-        renderPassInfo.pAttachments = &colorAttachment;
-        renderPassInfo.subpassCount = 1;
-        renderPassInfo.pSubpasses = &subpass;
-
         VkSubpassDependency dependency{};
         dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
         dependency.dstSubpass = 0;
@@ -553,6 +580,12 @@ private:
         dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
+        VkRenderPassCreateInfo renderPassInfo{};
+        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        renderPassInfo.attachmentCount = 1;
+        renderPassInfo.pAttachments = &colorAttachment;
+        renderPassInfo.subpassCount = 1;
+        renderPassInfo.pSubpasses = &subpass;
         renderPassInfo.dependencyCount = 1;
         renderPassInfo.pDependencies = &dependency;
 
@@ -827,6 +860,10 @@ private:
         return shaderModule;
     }
 
+    /**
+     * Query a physical device for a graphic queue that also supports
+     * presentation to a specified surface.  The queue is stored as an index.
+     */
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device)
     {
         // Logic to find graphics queue family
@@ -856,6 +893,10 @@ private:
         return indices;
     }
 
+    /**
+     * Create a vulkan instance with all required extensions enabled, and
+     * optionally enable validation layers.
+     */
     void createInstance()
     {
         if (enableValidationLayers)
@@ -913,6 +954,10 @@ private:
             cout << "  - " << ext.extensionName << endl;
     }
 
+    /**
+     * Set up a messanger callback function to the validation layer so that we
+     * can print the messages to stdout.
+     */
     void setupDebugMessanger()
     {
         if (!enableValidationLayers)
