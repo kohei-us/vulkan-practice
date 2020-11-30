@@ -548,6 +548,12 @@ private:
     /**
      * Create a render pass object with color attachment, subpass and
      * dependency info.
+     *
+     * According to the Vulkan specs, A render pass represents a collection of
+     * attachments, subpasses, and dependencies between the subpasses, and
+     * describes how the attachments are used over the course of the
+     * subpasses.  Attachments are inputs and output render targets that
+     * render passes use.
      */
     void createRenderPass()
     {
@@ -593,8 +599,30 @@ private:
             throw std::runtime_error("failed to create render pass!");
     }
 
+    /**
+     * This method creates pipeline layout and pipeline objects.  For now, we
+     * have empty pipeline layout.  Our graphics pipeline includes: vertex
+     * input, input assembly, viewport, rasterization, multisampling and color
+     * blending.  It create shader module objects from the pre-compiled SPIR-V
+     * blobs for vertex and fragment shader codes, which is required by the
+     * graphics pipeline creation. But they get destroyed at the end of this
+     * method.
+     */
     void createGraphicsPipeline()
     {
+        {
+            // pretty much empty layout
+            VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+            pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+            pipelineLayoutInfo.setLayoutCount = 0; // Optional
+            pipelineLayoutInfo.pSetLayouts = nullptr; // Optional
+            pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
+            pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
+
+            if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
+                throw std::runtime_error("failed to create pipeline layout!");
+        }
+
         auto vertShaderCode = readFile("shaders/vert.spv");
         auto fragShaderCode = readFile("shaders/frag.spv");
 
@@ -616,8 +644,9 @@ private:
         fragShaderStageInfo.module = fragShaderModule;
         fragShaderStageInfo.pName = "main";
 
-        VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+        VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
 
+        // empty vertex input
         VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
         vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
         vertexInputInfo.vertexBindingDescriptionCount = 0;
@@ -625,11 +654,13 @@ private:
         vertexInputInfo.vertexAttributeDescriptionCount = 0;
         vertexInputInfo.pVertexAttributeDescriptions = nullptr; // Optional
 
+        // input assembly
         VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
         inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
         inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
         inputAssembly.primitiveRestartEnable = VK_FALSE;
 
+        // viewport covers the whole extent.
         VkViewport viewport{};
         viewport.x = 0.0f;
         viewport.y = 0.0f;
@@ -692,16 +723,6 @@ private:
         colorBlending.blendConstants[1] = 0.0f; // Optional
         colorBlending.blendConstants[2] = 0.0f; // Optional
         colorBlending.blendConstants[3] = 0.0f; // Optional
-                                                //
-        VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-        pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        pipelineLayoutInfo.setLayoutCount = 0; // Optional
-        pipelineLayoutInfo.pSetLayouts = nullptr; // Optional
-        pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
-        pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
-
-        if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
-            throw std::runtime_error("failed to create pipeline layout!");
 
         VkGraphicsPipelineCreateInfo pipelineInfo{};
         pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -731,6 +752,10 @@ private:
         vkDestroyShaderModule(device, vertShaderModule, nullptr);
     }
 
+    /**
+     * Create frame buffers for all our swap chain images.  Frame buffers are
+     * referenced from the command buffers.
+     */
     void createFramebuffers()
     {
         swapChainFramebuffers.resize(swapChainImageViews.size());
@@ -753,6 +778,11 @@ private:
         }
     }
 
+    /**
+     * Create a command pool from which to create command buffers.  A command
+     * pool is created from a logical device although it needs the index of a
+     * queue which is from the physical device.
+     */
     void createCommandPool()
     {
         QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
@@ -766,6 +796,11 @@ private:
             throw std::runtime_error("failed to create command pool!");
     }
 
+    /**
+     * Create the same number of command buffers as that of the frame buffers
+     * we created earlier, and record the drawing commands for each command
+     * buffer.
+     */
     void createCommandBuffers()
     {
         commandBuffers.resize(swapChainFramebuffers.size());
@@ -798,11 +833,11 @@ private:
             renderPassInfo.framebuffer = swapChainFramebuffers[i];
 
             // define the size of the render area
-            renderPassInfo.renderArea.offset = {0, 0};
+            renderPassInfo.renderArea.offset = { 0, 0 };
             renderPassInfo.renderArea.extent = swapChainExtent;
 
             // define the clear values to use for VK_ATTACHMENT_LOAD_OP_CLEAR
-            VkClearValue clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
+            VkClearValue clearColor = { 0.0f, 0.5f, 0.0f, 1.0f };
             renderPassInfo.clearValueCount = 1;
             renderPassInfo.pClearValues = &clearColor;
 
@@ -823,6 +858,9 @@ private:
         }
     }
 
+    /**
+     * Create semaphores and fence objects for each frame to draw.
+     */
     void createSyncObjects()
     {
         imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
