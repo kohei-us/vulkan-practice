@@ -1039,6 +1039,9 @@ private:
     {
         vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
+        // Acquire the index of the next image to draw to. When the
+        // presentation engine is finished using the image, the specified
+        // semaphore will get triggered.
         uint32_t imageIndex;
         vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
         cout << "image index: " << imageIndex << endl;
@@ -1068,9 +1071,11 @@ private:
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
+        // Reset the fence to unsignaled state.
         vkResetFences(device, 1, &inFlightFences[currentFrame]);
 
-        // submit to the queue the command buffer for drawing ops.
+        // submit to the queue the command buffer for drawing ops.  When the
+        // command execution finishes, the specified fence will get signaled.
         if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS)
             throw std::runtime_error("failed to submit draw command buffer!");
 
