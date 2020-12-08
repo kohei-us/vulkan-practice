@@ -1,2 +1,3 @@
 vulkan-test
 vulkan-triangle
+shaders/*.spv
