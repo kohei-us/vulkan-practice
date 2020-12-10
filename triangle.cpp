@@ -180,6 +180,7 @@ class HelloTriangleApplication
     VkImage textureImage;
     VkDeviceMemory textureImageMemory;
     VkImageView textureImageView;
+    VkSampler textureSampler;
 
     std::vector<VkBuffer> uniformBuffers;
     std::vector<VkDeviceMemory> uniformBuffersMemory;
@@ -298,6 +299,7 @@ private:
         createCommandPool();
         createTextureImage();
         createTextureImageView();
+        createTextureSampler();
         createVertexBuffer();
         createIndexBuffer();
         createUniformBuffers();
@@ -694,52 +696,57 @@ private:
         return actualExtent;
     }
 
+    bool isDeviceSuitable(VkPhysicalDevice device)
+    {
+        VkPhysicalDeviceProperties deviceProperties;
+        vkGetPhysicalDeviceProperties(device, &deviceProperties);
+
+        if (deviceProperties.deviceType != VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+            return false;
+
+        VkPhysicalDeviceFeatures deviceFeatures;
+        vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+
+        cout << "GPU device:" << endl;
+        cout << "  - name: " << deviceProperties.deviceName << endl;
+        cout << "  - api version: " << deviceProperties.apiVersion << endl;
+        cout << "  - driver version: " << deviceProperties.driverVersion << endl;
+        cout << "  - vendor ID: " << deviceProperties.vendorID << endl;
+        cout << "  - device ID: " << deviceProperties.deviceID << endl;
+        cout << "  - supports geometry shader: " << deviceFeatures.geometryShader << endl;
+        cout << "  - supports sampler anisotropy: " << deviceFeatures.samplerAnisotropy << endl;
+
+        if (!deviceFeatures.geometryShader)
+            return false;
+
+        if (!deviceFeatures.samplerAnisotropy)
+            return false;
+
+        QueueFamilyIndices queues = findQueueFamilies(device);
+        if (!queues.isComplete())
+            return false;
+
+        cout << "  - queue family for graphics: " << *queues.graphicsFamily << endl;
+        cout << "  - queue family for present: " << *queues.presentFamily << endl;
+
+        if (!checkDeviceExtensionSupport(device))
+            return false;
+
+        SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
+        bool swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
+
+        cout << "Swap chain support details:" << endl;
+        cout << "  - number of surface formats supported: " << swapChainSupport.formats.size()<< endl;
+        cout << "  - number of present modes supported: " << swapChainSupport.presentModes.size()<< endl;
+
+        return swapChainAdequate;
+    }
+
     /**
      * Pick a suitable physical device (GPU) based on our requirements.
      */
     void pickPhysicalDevice()
     {
-        auto isDeviceSuitable = [this](VkPhysicalDevice device) -> bool {
-            VkPhysicalDeviceProperties deviceProperties;
-            vkGetPhysicalDeviceProperties(device, &deviceProperties);
-
-            if (deviceProperties.deviceType != VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
-                return false;
-
-            VkPhysicalDeviceFeatures deviceFeatures;
-            vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
-
-            if (!deviceFeatures.geometryShader)
-                return false;
-
-            cout << "GPU device:" << endl;
-            cout << "  - name: " << deviceProperties.deviceName << endl;
-            cout << "  - api version: " << deviceProperties.apiVersion << endl;
-            cout << "  - driver version: " << deviceProperties.driverVersion << endl;
-            cout << "  - vendor ID: " << deviceProperties.vendorID << endl;
-            cout << "  - device ID: " << deviceProperties.deviceID << endl;
-            cout << "  - supports geometry shader: " << deviceFeatures.geometryShader << endl;
-
-            QueueFamilyIndices queues = findQueueFamilies(device);
-            if (!queues.isComplete())
-                return false;
-
-            cout << "  - queue family for graphics: " << *queues.graphicsFamily << endl;
-            cout << "  - queue family for present: " << *queues.presentFamily << endl;
-
-            if (!checkDeviceExtensionSupport(device))
-                return false;
-
-            SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
-            bool swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
-
-            cout << "Swap chain support details:" << endl;
-            cout << "  - number of surface formats supported: " << swapChainSupport.formats.size() << endl;
-            cout << "  - number of present modes supported: " << swapChainSupport.presentModes.size() << endl;
-
-            return swapChainAdequate;
-        };
-
         uint32_t deviceCount = 0;
         vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
 
@@ -790,7 +797,8 @@ private:
             queueCreateInfos.push_back(queueCreateInfo);
         }
 
-        VkPhysicalDeviceFeatures deviceFeatures{}; // For now, we are not using any features.
+        VkPhysicalDeviceFeatures deviceFeatures{};
+        deviceFeatures.samplerAnisotropy = VK_TRUE;
 
         VkDeviceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -1316,6 +1324,36 @@ private:
         textureImageView = createImageView(textureImage, VK_FORMAT_R8G8B8A8_SRGB);
     }
 
+    void createTextureSampler()
+    {
+        VkSamplerCreateInfo samplerInfo{};
+        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        samplerInfo.magFilter = VK_FILTER_LINEAR;
+        samplerInfo.minFilter = VK_FILTER_LINEAR;
+        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.anisotropyEnable = VK_TRUE;
+
+        // Use the maximum possible anisotropy level for the device
+        VkPhysicalDeviceProperties properties{};
+        vkGetPhysicalDeviceProperties(physicalDevice, &properties);
+        samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+
+        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+        samplerInfo.unnormalizedCoordinates = VK_FALSE; // use [0, 1) address for texels
+        samplerInfo.compareEnable = VK_FALSE;
+        samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+
+        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        samplerInfo.mipLodBias = 0.0f;
+        samplerInfo.minLod = 0.0f;
+        samplerInfo.maxLod = 0.0f;
+
+        if (vkCreateSampler(device, &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS)
+            throw std::runtime_error("failed to create texture sampler!");
+    }
+
     /**
      * Create a one-time use command buffer.
      */
@@ -1736,6 +1774,7 @@ private:
     {
         cleanupSwapChain();
 
+        vkDestroySampler(device, textureSampler, nullptr);
         vkDestroyImageView(device, textureImageView, nullptr);
         vkDestroyImage(device, textureImage, nullptr);
         vkFreeMemory(device, textureImageMemory, nullptr);
