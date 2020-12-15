@@ -11,6 +11,9 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tiny_obj_loader.h>
+
 #include <chrono>
 #include <iostream>
 #include <stdexcept>
@@ -27,6 +30,12 @@
 using std::cout;
 using std::cerr;
 using std::endl;
+
+const uint32_t WIDTH = 800;
+const uint32_t HEIGHT = 600;
+
+const std::string MODEL_PATH = "models/viking_room.obj";
+const std::string TEXTURE_PATH = "textures/viking_room.png";
 
 const std::vector<const char*> validationLayers = {
     "VK_LAYER_KHRONOS_validation"
@@ -90,6 +99,7 @@ struct Vertex
     }
 };
 
+#if 0
 const std::vector<Vertex> vertices = {
     { { -0.5f, -0.5f, 0.0f }, { 1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f } },
     { { 0.5f, -0.5f, 0.0f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f } },
@@ -106,6 +116,7 @@ const std::vector<uint16_t> indices = {
     0, 1, 2, 2, 3, 0,
     4, 5, 6, 6, 7, 4,
 };
+#endif
 
 VkResult CreateDebugUtilsMessengerEXT(
     VkInstance instance,
@@ -189,6 +200,9 @@ class HelloTriangleApplication
     VkCommandPool commandPool;
     VkDescriptorPool descriptorPool;
     std::vector<VkDescriptorSet> descriptorSets;
+
+    std::vector<Vertex> vertices;
+    std::vector<uint32_t> indices;
     VkBuffer vertexBuffer;
     VkDeviceMemory vertexBufferMemory;
     VkBuffer indexBuffer;
@@ -292,7 +306,7 @@ private:
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
-        window = glfwCreateWindow(800, 600, "Vulkan", nullptr, nullptr);
+        window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
         glfwSetWindowUserPointer(window, this);
         glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
     }
@@ -321,6 +335,7 @@ private:
         createTextureImage();
         createTextureImageView();
         createTextureSampler();
+        loadModel();
         createVertexBuffer();
         createIndexBuffer();
         createUniformBuffers();
@@ -497,6 +512,42 @@ private:
         );
 
         endSingleTimeCommands(commandBuffer);
+    }
+
+    void loadModel()
+    {
+        tinyobj::attrib_t attrib;
+        std::vector<tinyobj::shape_t> shapes;
+        std::vector<tinyobj::material_t> materials;
+        std::string warn, err;
+
+        if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, MODEL_PATH.data()))
+            throw std::runtime_error(warn + err);
+
+        for (const auto& shape : shapes)
+        {
+            for (const auto& index : shape.mesh.indices)
+            {
+                Vertex vertex{};
+
+                vertex.pos = {
+                    attrib.vertices[3 * index.vertex_index + 0],
+                    attrib.vertices[3 * index.vertex_index + 1],
+                    attrib.vertices[3 * index.vertex_index + 2]
+                };
+
+                vertex.texCoord = {
+                    attrib.texcoords[2 * index.texcoord_index + 0],
+                    1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+                };
+
+                vertex.color = { 1.0f, 1.0f, 1.0f };
+
+                vertices.push_back(vertex);
+                indices.push_back(indices.size());
+            }
+
+        }
     }
 
     void createVertexBuffer()
@@ -1409,7 +1460,7 @@ private:
     void createTextureImage()
     {
         int texWidth, texHeight, texChannels;
-        stbi_uc* pixels = stbi_load("textures/texture.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+        stbi_uc* pixels = stbi_load(TEXTURE_PATH.data(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
         VkDeviceSize imageSize = texWidth * texHeight * 4;
 
         if (!pixels)
@@ -1603,7 +1654,7 @@ private:
             VkBuffer vertexBuffers[] = { vertexBuffer };
             VkDeviceSize offsets[] = { 0 };
             vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
-            vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+            vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
             vkCmdBindDescriptorSets(
                 commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,

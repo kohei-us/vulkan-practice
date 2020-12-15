@@ -1,6 +1,7 @@
 STB_INCLUDE_PATH=external/stb
+TINYOBJLOADER_INCLUDE_PATH=external/tinyobjloader
 
-CPPFLAGS=-std=c++17 -O2 -g -I$(STB_INCLUDE_PATH)
+CPPFLAGS=-std=c++17 -O2 -g -I$(STB_INCLUDE_PATH) -I$(TINYOBJLOADER_INCLUDE_PATH)
 LDFLAGS=-lglfw -lvulkan -ldl -lpthread -lX11 -lXrandr -lXi
 APPS= \
 	vulkan-test \
