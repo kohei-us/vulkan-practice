@@ -30,6 +30,7 @@
 #include <fstream>
 #include <array>
 #include <bitset>
+#include <cmath>
 
 using std::cout;
 using std::cerr;
@@ -1547,14 +1548,23 @@ private:
             static_cast<uint32_t>(texWidth),
             static_cast<uint32_t>(texHeight));
 
-        generateMipmaps(textureImage, texWidth, texHeight, textureMipLevels);
+        generateMipmaps(textureImage, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, textureMipLevels);
 
         vkDestroyBuffer(device, stagingBuffer, nullptr);
         vkFreeMemory(device, stagingBufferMemory, nullptr);
     }
 
-    void generateMipmaps(VkImage image, int32_t texWidth, int32_t texHeight, uint32_t mipLevels)
+    void generateMipmaps(
+        VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight,
+        uint32_t mipLevels)
     {
+        // Check if image format supports linear blitting
+        VkFormatProperties formatProperties;
+        vkGetPhysicalDeviceFormatProperties(physicalDevice, imageFormat, &formatProperties);
+
+        if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT))
+            throw std::runtime_error("texture image format does not support linear blitting!");
+
         VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
         VkImageMemoryBarrier barrier{};
@@ -1572,6 +1582,8 @@ private:
 
         for (uint32_t i = 1; i < mipLevels; i++)
         {
+            cout << "Generating mipmap image for level " << i << endl;
+
             barrier.subresourceRange.baseMipLevel = i - 1;
             barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
             barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
@@ -1666,9 +1678,9 @@ private:
         samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
 
         samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-        samplerInfo.mipLodBias = 0.0f;
         samplerInfo.minLod = 0.0f;
-        samplerInfo.maxLod = 0.0f;
+        samplerInfo.maxLod = textureMipLevels;
+        samplerInfo.mipLodBias = 0.0f;
 
         if (vkCreateSampler(device, &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS)
             throw std::runtime_error("failed to create texture sampler!");
@@ -2061,10 +2073,12 @@ private:
         auto currentTime = std::chrono::high_resolution_clock::now();
         float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
+        float eye_dist = 6.0f * std::sin(time * 0.6f) + 6.0f;
+
         UniformBufferObject ubo{};
-        ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
+        ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(60.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        ubo.view = glm::lookAt(glm::vec3(eye_dist, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 20.0f);
         ubo.proj[1][1] *= -1;
 
         void* data;
